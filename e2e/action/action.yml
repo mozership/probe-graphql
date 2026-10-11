@@ -1,0 +1,12 @@
+# probe-graphql built from this checkout, for the workflows of e2e. Probe
+# resolves an action before the first job starts, so the executable is built
+# before probe runs:
+#
+#   go build -o e2e/action/probe-graphql . && probe e2e/workflow.yml
+name: graphql
+description: Send a GraphQL query over HTTP
+guard: [read-only, allow-host]
+params: [url, query, variables, operation_name, headers, timeout]
+runs:
+  using: binary
+  path: probe-graphql

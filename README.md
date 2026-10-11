@@ -69,6 +69,17 @@ The action keeps to the guard of the run, and its `action.yml` declares `guard: 
 
 A refused step fails with the kind `refused`.
 
+## Testing
+
+`go test ./...` runs against a stub server. `e2e/workflow.yml` runs the action through Probe against the GraphQL server of `e2e/server`, whose queries are run by [graphql-go](https://github.com/graphql-go/graphql):
+
+```sh
+go -C e2e/server run . &
+go build -o e2e/action/probe-graphql . && probe e2e/workflow.yml
+```
+
+`GRAPHQL_URL` names the server when it listens elsewhere than on `127.0.0.1:18081`. `e2e/guard.yml` is run under `--read-only` and under `--allow-host`, where its steps are refused.
+
 ## Releasing
 
 Pushing a `v*` tag builds the executables with GoReleaser and publishes them on the release. The workflow then has `probe manifest` write an `action.yml` with their URLs and SHA-256 digests, commits it to `main`, and adds the commit to the release notes. The name, the description, `guard` and `params` are those of the `action.yml` at the tag, so that file is where to change them. That commit is the one to pin: Probe reads `action.yml` at the pinned commit and refuses an executable whose digest differs.

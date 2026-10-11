@@ -1,0 +1,41 @@
+# What probe-graphql does under a guard. Its last step sends a mutation, so a
+# run under --read-only ends there with exit status 2, and under an
+# --allow-host that does not name the server every step is refused:
+#
+#   probe --read-only --allow-host localhost e2e/guard.yml
+#   probe --allow-host api.example.com e2e/guard.yml
+name: probe-graphql under a guard
+
+actions:
+  graphql: ./action
+
+vars:
+  base: "{{GRAPHQL_URL ?? 'http://localhost:18081'}}"
+
+jobs:
+- name: A query and a mutation
+  defaults:
+    graphql:
+      url: "{{vars.base}}/graphql"
+  steps:
+  - name: A query is sent
+    uses: graphql
+    with:
+      query: '{ country(code: "JP") { capital } }'
+    test: status == 0 && res.data.country.capital == "Tokyo"
+
+  - name: A redirect to a host the run allows is followed
+    uses: graphql
+    with:
+      url: "{{vars.base}}/moved"
+      query: "{ __typename }"
+    test: status == 0 && res.data.__typename == "Query"
+
+  - name: A mutation is refused
+    uses: graphql
+    with:
+      query: |
+        mutation {
+          addCountry(code: "E2E-GUARD", name: "Never written") { code }
+        }
+    test: status == 0
