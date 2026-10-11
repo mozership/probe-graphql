@@ -6,11 +6,13 @@ Probe downloads it the first time a workflow uses it. It needs Probe v1.17.0 or 
 
 ```yaml
 name: Countries API
+actions:
+  graphql: github.com/mozership/probe-graphql@<commit SHA>
 jobs:
 - name: countries
   steps:
   - name: Look up Japan
-    uses: github.com/mozership/probe-graphql@<commit SHA>
+    uses: graphql
     with:
       url: https://countries.trevorblades.com/graphql
       query: |
@@ -22,7 +24,9 @@ jobs:
     test: res.code == 200 && len(res.errors) == 0 && res.data.country.capital == "Tokyo"
 ```
 
-Probe only takes a full 40-character commit SHA. The notes of each [release](https://github.com/mozership/probe-graphql/releases) start with the `uses` line to copy.
+The workflow gives the action a name once, under `actions`, and its steps use the name. Probe only takes a full 40-character commit SHA there. The notes of each [release](https://github.com/mozership/probe-graphql/releases) start with the action and its commit to copy.
+
+`actions` needs Probe v1.24.0 or later. With an earlier one, write the action in full in each `uses`, as `uses: github.com/mozership/probe-graphql@<commit SHA>`.
 
 ## Parameters
 
