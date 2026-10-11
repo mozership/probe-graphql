@@ -1,2 +1,4 @@
 /probe-graphql
 /dist/
+/e2e/action/probe-graphql
+/e2e/server/server

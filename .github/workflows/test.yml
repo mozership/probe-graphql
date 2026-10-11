@@ -16,3 +16,55 @@ jobs:
           go-version-file: go.mod
       - run: go vet ./...
       - run: go test -race ./...
+      # The server of the e2e workflows is a module of its own, which the
+      # commands above do not reach.
+      - run: go -C e2e/server vet ./...
+
+  # The tests above answer from a stub. This one runs the action through
+  # Probe against a GraphQL server, whose queries are run by an
+  # implementation none of the action was written against.
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6.1.0
+        with:
+          go-version-file: go.mod
+      # Probe resolves the action before the first job of a workflow, so it
+      # is built first.
+      - run: go build -o e2e/action/probe-graphql .
+      # The first step of e2e/workflow.yml waits for it to listen.
+      - name: Start the GraphQL server
+        run: |
+          go -C e2e/server build -o server .
+          e2e/server/server > "$RUNNER_TEMP/server.txt" 2>&1 &
+      # The probe the e2e workflows run. The action checks it against the
+      # digest of its release and adds it to PATH.
+      - name: Install Probe
+        uses: mozership/probe-action@831b8b6c6aa0c8a61aa75b58f36a08da5c579e83 # v1.3.0
+        with:
+          install-only: true
+          version: v1.25.0
+      - run: probe check e2e/workflow.yml
+      - run: probe e2e/workflow.yml
+      # The query of guard.yml is sent and its mutation is refused, which
+      # ends the run with exit status 2.
+      - name: A mutation is refused under --read-only
+        run: |
+          status=0
+          probe --read-only --allow-host localhost e2e/guard.yml > "$RUNNER_TEMP/read-only.txt" 2>&1 || status=$?
+          cat "$RUNNER_TEMP/read-only.txt"
+          test "$status" -eq 2
+          grep -F '✓  A query is sent' "$RUNNER_TEMP/read-only.txt"
+          grep -F '✓  A redirect to a host the run allows is followed' "$RUNNER_TEMP/read-only.txt"
+          grep -F 'refused: the run is read-only, and the mutation may write; only a query is sent' "$RUNNER_TEMP/read-only.txt"
+      - name: A host the run does not allow is refused
+        run: |
+          status=0
+          probe --allow-host api.example.com e2e/guard.yml > "$RUNNER_TEMP/allow-host.txt" 2>&1 || status=$?
+          cat "$RUNNER_TEMP/allow-host.txt"
+          test "$status" -eq 2
+          grep -F 'refused: the host localhost:18081 is not one the run allows' "$RUNNER_TEMP/allow-host.txt"
+      - name: What the server logged
+        if: always()
+        run: cat "$RUNNER_TEMP/server.txt"

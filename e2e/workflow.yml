@@ -1,0 +1,179 @@
+# The end-to-end tests: probe-graphql run through Probe against a GraphQL
+# server. Run it from the repository root, with the server of e2e/server
+# listening and the action built first, as Probe resolves it before the first
+# job:
+#
+#   go -C e2e/server run . &
+#   go build -o e2e/action/probe-graphql . && probe e2e/workflow.yml
+#
+# The server keeps its countries in memory, and GRAPHQL_URL names it when it
+# listens elsewhere than on 127.0.0.1:18081.
+name: probe-graphql against a server
+
+# The action as it was just built, by the name a workflow would give a
+# released one.
+actions:
+  graphql: ./action
+
+vars:
+  base: "{{GRAPHQL_URL ?? 'http://localhost:18081'}}"
+  # The code of the country one run adds, so that runs against the same
+  # server do not add the same one.
+  code: "E2E-{{random_str(12)}}"
+
+jobs:
+- name: Queries and a mutation
+  id: queries
+  defaults:
+    graphql:
+      url: "{{vars.base}}/graphql"
+  steps:
+  - name: Wait for the server
+    uses: graphql
+    with:
+      query: "{ __typename }"
+    retry: {max_attempts: 30, interval: 1s}
+    test: status == 0 && res.data.__typename == "Query"
+
+  - name: A query with variables
+    uses: graphql
+    with:
+      query: |
+        query Country($code: ID!) {
+          country(code: $code) { name capital }
+        }
+      variables:
+        code: JP
+    test: |
+      status == 0 && res.code == 200 && len(res.errors) == 0 &&
+      res.data.country.name == "Japan" && res.data.country.capital == "Tokyo" &&
+      req.variables.code == "JP"
+
+  - name: A field that is null, and a record that is not there
+    uses: graphql
+    with:
+      query: |
+        {
+          antarctica: country(code: "AQ") { name capital }
+          nowhere: country(code: "ZZ") { name }
+        }
+    test: |
+      status == 0 &&
+      res.data.antarctica.name == "Antarctica" && res.data.antarctica.capital == nil &&
+      res.data.nowhere == nil
+
+  - name: The operation operation_name names is the one run
+    uses: graphql
+    with:
+      query: |
+        query Japan { country(code: "JP") { name } }
+        query France { country(code: "FR") { name } }
+      operation_name: France
+    test: status == 0 && res.data.country.name == "France" && req.operation_name == "France"
+
+  - name: The headers of the step are sent, and the ones of the action
+    uses: graphql
+    with:
+      query: "{ viewer userAgent }"
+      headers:
+        Authorization: Bearer ada
+    test: |
+      status == 0 && res.data.viewer == "ada" &&
+      res.data.userAgent startsWith "probe-graphql/"
+
+  - name: The server answers in the media type of GraphQL
+    uses: graphql
+    with:
+      query: "{ countries { code } }"
+    test: |
+      status == 0 && len(res.data.countries) >= 3 &&
+      res.headers["Content-Type"] startsWith "application/graphql-response+json" &&
+      res.body.data.countries == res.data.countries && res.rawbody contains "\"JP\""
+
+  - name: A mutation writes
+    id: add
+    uses: graphql
+    with:
+      query: |
+        mutation Add($code: ID!, $name: String!, $capital: String) {
+          addCountry(code: $code, name: $name, capital: $capital) { code name capital }
+        }
+      variables:
+        code: "{{vars.code}}"
+        name: Probeland
+        capital: Checkpoint
+    test: status == 0 && res.data.addCountry.code == vars.code
+    outputs:
+      code: res.data.addCountry.code
+
+  - name: A query reads what the mutation wrote
+    uses: graphql
+    with:
+      query: |
+        query Country($code: ID!) {
+          country(code: $code) { name capital }
+        }
+      variables:
+        code: "{{outputs.add.code}}"
+    test: status == 0 && res.data.country.name == "Probeland" && res.data.country.capital == "Checkpoint"
+
+  - name: A redirect is followed, with the query
+    uses: graphql
+    with:
+      url: "{{vars.base}}/moved"
+      query: '{ country(code: "FR") { capital } }'
+    test: status == 0 && res.code == 200 && res.data.country.capital == "Paris"
+
+- name: Failures the server reports
+  needs: [queries]
+  defaults:
+    graphql:
+      url: "{{vars.base}}/graphql"
+  steps:
+  - name: A field the schema does not have
+    uses: graphql
+    with:
+      query: "{ planet { name } }"
+    test: |
+      status == 1 && res.code == 400 && res.data == nil &&
+      len(res.errors) == 1 && res.errors[0].message contains "planet"
+
+  - name: A variable of the wrong type
+    uses: graphql
+    with:
+      query: |
+        query Country($code: ID!) {
+          country(code: $code) { name }
+        }
+      variables:
+        code: null
+    test: status == 1 && res.data == nil && res.errors[0].message contains "$code"
+
+  - name: An error of one field, beside the data of the others
+    uses: graphql
+    with:
+      query: '{ viewer country(code: "JP") { name } }'
+    test: |
+      status == 1 && res.code == 200 &&
+      res.data.viewer == nil && res.data.country.name == "Japan" &&
+      len(res.errors) == 1 && res.errors[0].message == "not signed in" &&
+      res.errors[0].path == ["viewer"]
+
+  - name: A mutation the server refuses
+    uses: graphql
+    with:
+      query: |
+        mutation {
+          addCountry(code: "JP", name: "Japan") { code }
+        }
+    test: status == 1 && res.errors[0].message contains "already there"
+
+  - name: An answer that is not GraphQL
+    uses: graphql
+    with:
+      url: "{{vars.base}}/down"
+      query: "{ __typename }"
+    test: |
+      status == 1 && res.code == 502 && res.status == "502 Bad Gateway" &&
+      res.data == nil && len(res.errors) == 0 &&
+      res.body contains "no server to answer"
