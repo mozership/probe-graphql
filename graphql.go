@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/linyows/probe/actionrpc"
+	"github.com/mozership/probe/actionrpc"
 	"github.com/vektah/gqlparser/v2/ast"
 	"github.com/vektah/gqlparser/v2/parser"
 )

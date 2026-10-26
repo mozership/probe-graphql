@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/linyows/probe/actionref"
-	"github.com/linyows/probe/actionrpc"
+	"github.com/mozership/probe/actionref"
+	"github.com/mozership/probe/actionrpc"
 )
 
 // server answers every request with code and body, and records the last
