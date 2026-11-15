@@ -4,9 +4,9 @@ guard: [read-only, allow-host]
 params: [url, query, variables, operation_name, headers, timeout]
 runs:
   using: binary
-  url: https://github.com/mozership/probe-graphql/releases/download/v0.2.0/probe-graphql_{os}_{arch}
+  url: https://github.com/mozership/probe-graphql/releases/download/v0.2.1/probe-graphql_{os}_{arch}
   checksums:
-    darwin_amd64: "831813a619bee5a208b183a37f078d7dc06809db2b7b9519cdfaa911277cb97e"
-    darwin_arm64: "b5fe21a59df3974e290f2e43990bddc2842982e7069bcaf47e96fc07c9b1279f"
-    linux_amd64: "82f39049d94ef2859201d8bd92b24fd929b4c4d88a7fd0b3027ef049a133978f"
-    linux_arm64: "0f004bdf2df6dcc24961805f2bd28c4491c65ad386d729d0282020f4851f722b"
+    darwin_amd64: "f94af733be180994309e55f4fdf4262a70b344b731a51f31f7bd02af79dfef2a"
+    darwin_arm64: "d2a129c6f079ea28d32015d65522e97c6783e6e15e0e865c37c33e91b9b9ccd7"
+    linux_amd64: "77fb5061277f715c5ef208b6a0ffe2ee0f6b614c3ed9b66d5f19c43aae84a442"
+    linux_arm64: "5aa3e6f5ed85bc0ff8986e0996928da9a2f6656aa776268ddb0e3dc4fafdc310"
