@@ -12,8 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mozership/probe/actionref"
-	"github.com/mozership/probe/actionrpc"
+	"github.com/mozership/probe/sdk"
 )
 
 // server answers every request with code and body, and records the last
@@ -228,7 +227,7 @@ func TestParseTimeout(t *testing.T) {
 func TestRunStepReadOnly(t *testing.T) {
 	ts, rec := server(t, 200, "application/json", `{"data":{}}`)
 	host := strings.TrimPrefix(ts.URL, "http://")
-	guard := actionrpc.Guard{ReadOnly: true, AllowHosts: []string{host}}
+	guard := sdk.Guard{ReadOnly: true, AllowHosts: []string{host}}
 	tests := []struct {
 		name          string
 		query         string
@@ -252,7 +251,7 @@ func TestRunStepReadOnly(t *testing.T) {
 			if tt.operationName != "" {
 				with["operation_name"] = tt.operationName
 			}
-			_, _, err := (&Action{}).RunStep(actionrpc.Call{With: with, Guard: guard})
+			_, _, err := (&Action{}).RunStep(sdk.Call{With: with, Guard: guard})
 			if tt.refused == "" {
 				if err != nil {
 					t.Fatalf("RunStep() error = %v, want the query sent", err)
@@ -262,7 +261,7 @@ func TestRunStepReadOnly(t *testing.T) {
 				}
 				return
 			}
-			if !actionrpc.IsRefused(err) || !strings.Contains(err.Error(), tt.refused) {
+			if !sdk.IsRefused(err) || !strings.Contains(err.Error(), tt.refused) {
 				t.Errorf("RunStep() error = %v, want a refusal saying %q", err, tt.refused)
 			}
 			if rec.method != "" {
@@ -273,7 +272,7 @@ func TestRunStepReadOnly(t *testing.T) {
 
 	// Without the guard a mutation is sent as it is.
 	rec.method = ""
-	if _, _, err := (&Action{}).RunStep(actionrpc.Call{With: map[string]any{"url": ts.URL, "query": "mutation { x }"}}); err != nil || rec.method != http.MethodPost {
+	if _, _, err := (&Action{}).RunStep(sdk.Call{With: map[string]any{"url": ts.URL, "query": "mutation { x }"}}); err != nil || rec.method != http.MethodPost {
 		t.Errorf("RunStep() without a guard: error = %v, sent = %v", err, rec.method != "")
 	}
 }
@@ -283,13 +282,13 @@ func TestRunStepAllowHost(t *testing.T) {
 	u, _ := url.Parse(ts.URL)
 	with := map[string]any{"url": ts.URL, "query": "{ a }"}
 
-	_, _, err := (&Action{}).RunStep(actionrpc.Call{With: with, Guard: actionrpc.Guard{AllowHosts: []string{"api.example.com"}}})
-	if !actionrpc.IsRefused(err) || rec.method != "" {
+	_, _, err := (&Action{}).RunStep(sdk.Call{With: with, Guard: sdk.Guard{AllowHosts: []string{"api.example.com"}}})
+	if !sdk.IsRefused(err) || rec.method != "" {
 		t.Errorf("RunStep() error = %v, sent = %v; want a refusal before sending", err, rec.method != "")
 	}
 
 	// A host without a port is any port of it.
-	if _, _, err := (&Action{}).RunStep(actionrpc.Call{With: with, Guard: actionrpc.Guard{AllowHosts: []string{u.Hostname()}}}); err != nil {
+	if _, _, err := (&Action{}).RunStep(sdk.Call{With: with, Guard: sdk.Guard{AllowHosts: []string{u.Hostname()}}}); err != nil {
 		t.Errorf("RunStep() error = %v for an allowed host", err)
 	}
 
@@ -298,11 +297,11 @@ func TestRunStepAllowHost(t *testing.T) {
 	t.Cleanup(front.Close)
 	fu, _ := url.Parse(front.URL)
 	rec.method = ""
-	_, _, err = (&Action{}).RunStep(actionrpc.Call{
+	_, _, err = (&Action{}).RunStep(sdk.Call{
 		With:  map[string]any{"url": front.URL, "query": "{ a }"},
-		Guard: actionrpc.Guard{AllowHosts: []string{fu.Host}},
+		Guard: sdk.Guard{AllowHosts: []string{fu.Host}},
 	})
-	if !actionrpc.IsRefused(err) || rec.method != "" {
+	if !sdk.IsRefused(err) || rec.method != "" {
 		t.Errorf("RunStep() error = %v, sent = %v; want the redirect refused", err, rec.method != "")
 	}
 }
@@ -324,7 +323,7 @@ func TestManifestsDeclare(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		m, err := actionref.ParseManifest(data)
+		m, err := sdk.ParseManifest(data)
 		if err != nil {
 			t.Fatalf("%s: %v", name, err)
 		}
